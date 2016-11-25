@@ -294,6 +294,7 @@ var darkMapStyle = [
 var currentKeyword = null;
 var clusterOptions;
 var sentiment_pic;
+var tempTweets = [];
 /*var lightMapStyle = [
    {
       "featureType":"administrative",
@@ -578,7 +579,6 @@ var sentiment_pic;
 
 function init(){
     console.log("Initialize Called");
-    //var latlng = new google.maps.LatLng(37.09024, -95.712891);
     var latlng = new google.maps.LatLng(35.972191, -17.189423);
 
     currentMapStyle = darkMapStyle;
@@ -728,7 +728,7 @@ function addTweetSidebar(tweet){
                         '</blockquote>';
 
     var $newTweet = $(tweetContent);
-    $('#tweetPlace').append($newTweet);
+    $('#tweetPlace').prepend($newTweet);
 }
 
 function keywordSelect(queryKey) {
@@ -739,16 +739,15 @@ function keywordSelect(queryKey) {
     .fail(function(error){
         console.log(error);
     });
-
 }
 
 function removeMarkers(){
-    console.log("Removing Markers");
     for(i = 0; i < markers.length; i++){
         markers[i].setMap(null);
     }
     markers.length = 0;
     markerCluster.clearMarkers();
+    deleteTempMarkers();
     //map = new google.maps.Map(document.getElementById("map-canvas"), mapOptions);
 }
 
@@ -771,6 +770,7 @@ function tweetSearch(){
 }
 
 window.setInterval(function(){
+    console.log("KeyWord Interval function");
     if($('#searchText').val() == ''){
         currentKeyword = "All";
     }
@@ -781,3 +781,68 @@ window.setInterval(function(){
 setTimeout(function() {
   keywordSelect(null);
 }, 2000);
+
+//-----------CHANGES-----------
+function newTweet() {
+    $.getJSON("newTweet", {keyword: "new"})
+    .done(function(data){
+        console.log("New tweets just arrived");
+        drawTempMarkers(data);
+    })
+    .fail(function(error){
+        console.log(error);
+    });
+}
+
+//Show markers for all incoming tweets but add to sidebar only if text contains selected keyword
+// function drawTempMarkers(newData){
+//     deleteTempMarkers();
+//     tweets = newData.tweets;
+//     $.each(tweets, function(i, tweet){
+//         if(tweet != undefined){
+//             var location = new google.maps.LatLng(tweet.coordinates[0], tweet.coordinates[1]);
+//             var newMarker = new google.maps.Marker({
+//                 position: location,
+//                 map: map,
+//                 animation: google.maps.Animation.DROP,
+//             });
+//             tempTweets.push(newMarker);
+//             if(currentKeyword === "All"){
+//                 addTweetSidebar(tweet);
+//             }
+//             else if(currentKeyword !== "All" && tweet.text.toLowerCase().indexOf(currentKeyword.toLowerCase()) !== -1){
+//                 addTweetSidebar(tweet);
+//             }
+//         }
+//     });
+// }
+
+//Shows new tweet markers and sidebar change only when it matches current keyword or currently no keyword selected.
+function drawTempMarkers(newData){
+    deleteTempMarkers();
+    tweets = newData.tweets;
+    $.each(tweets, function(i, tweet){
+        if(tweet != undefined && (currentKeyword === "All" || tweet.text.toLowerCase().indexOf(currentKeyword.toLowerCase()) !== -1)){
+            var location = new google.maps.LatLng(tweet.coordinates[0], tweet.coordinates[1]);
+            var newMarker = new google.maps.Marker({
+                position: location,
+                map: map,
+                animation: google.maps.Animation.DROP,
+            });
+            tempTweets.push(newMarker);
+            addTweetSidebar(tweet);
+        }
+    });
+}
+
+function deleteTempMarkers() {
+    for (var i = 0; i < tempTweets.length; i++) {
+      tempTweets[i].setMap(null);
+    }
+    tempTweets = [];
+}
+
+window.setInterval(function(){
+    console.log("Polling");
+    newTweet();
+}, 8000);

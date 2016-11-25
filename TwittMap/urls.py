@@ -15,11 +15,12 @@ Including another URLconf
 """
 from django.conf.urls import url
 from django.contrib import admin
-from CoreApp.views import home, map, keywordSelect, notifications
+from CoreApp.views import home, map, keywordSelect, notifications, newTweet
 
 urlpatterns = [
 
     url(r'^$', map),
+    url(r'^newTweet', newTweet, name='newTweet'),
     url(r'^notifications', notifications, name='notifications'),
     url(r'^keywordSelect', keywordSelect, name='keywordSelect'),
     url(r'^admin/', admin.site.urls),

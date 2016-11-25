@@ -1,15 +1,17 @@
 import json
 import urllib3
-from django.shortcuts import render
-from django.http import HttpResponse
 from configparser import ConfigParser
-from requests_aws4auth import AWS4Auth
+from django.http import HttpResponse
+from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET
 from elasticsearch import Elasticsearch, RequestsHttpConnection
+from requests_aws4auth import AWS4Auth
+from queue import Queue
 
+flag = False
+tweetQueue = Queue(maxsize=10)
 
-#Read keys from config file
 secret = ConfigParser()
 secret.read("config.ini")
 
@@ -32,19 +34,20 @@ elasticSearch = Elasticsearch(hosts = [{'host': AWSElasticPath, 'port': 443}],
 
 print("######### Elastic initialized ######")
 
+
+
 def home(request):
     return render(request, "CoreApp/index.html");
 
 def map(request):
     return render(request, "CoreApp/home.html")
 
-#The SNS notifications have been configured to receive on localhost:8000/notifications url.
 @csrf_exempt
 def notifications(request):
     body = json.loads(request.body.decode("utf-8"))
+    print(type(body))
     hdr = body['Type']
 
-    #To confirm subscription of the service. Make a get request on the SubscribeURL url in the message.
     if hdr == 'SubscriptionConfirmation':
         url = body['SubscribeURL']
         print("Subscription Confirmation - Visiting URL : " + url)
@@ -52,12 +55,14 @@ def notifications(request):
         r = http.request('GET', url)
         print(r.status)
 
-    #Notification of a new message available.
     if hdr == 'Notification':
         print("SNS Notification")
         tweet = json.loads(body['Message'])
-        #Add data to elastic search.
         elasticSearch.index(index='sentimentindex', doc_type='tweet', id=tweet["id"], body=tweet)
+
+        if not tweetQueue.full() and flag == False:
+            tweetQueue.put(tweet)
+            print("Tweet in queue")
 
     return HttpResponse(status=200)
 
@@ -100,5 +105,28 @@ def keywordSelect(request):
 
     print(len(result_data['features']))
     return HttpResponse(json.dumps(result_data), content_type="application/json")
+
+@require_GET
+def newTweet(request):
+    print("New Tweet Poll received!!")
+    resultData = {
+        "tweets": []
+    }
+
+    data = {
+        "key" : "value"
+    }
+
+    print("Before while--")
+
+    flag = True
+
+    while tweetQueue.qsize() != 0:
+        resultData["tweets"].append(tweetQueue.get(block=True))
+
+    flag = False
+
+    print(len(resultData["tweets"]))
+    return HttpResponse(json.dumps(resultData), content_type="application/json")
 
 
